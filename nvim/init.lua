@@ -167,6 +167,11 @@ lsp.dockerls.setup{
   capabilities = capabilities,
   on_attach = on_attach,
 }
+-- Requires https://github.com/artempyanykh/marksman
+lsp.marksman.setup{
+  capabilities = capabilities,
+  on_attach = on_attach,
+}
 lsp.tsserver.setup {
   capabilities = capabilities,
   on_attach = function(client, bufnr)
@@ -190,6 +195,9 @@ require('rust-tools').setup({
   tools = {
     hover_actions = {
       auto_focus = true
+    },
+    inlay_hints = {
+      only_current_line = true
     },
   },
   server = {

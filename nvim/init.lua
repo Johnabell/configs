@@ -31,6 +31,9 @@ require('packer').startup(function(use)
   use {'junegunn/fzf'}
 
   -- colorscheme
+  -- There was an issue with this color scheme after updating to nvim 0.8.
+  -- I found a work around here.
+  -- https://stackoverflow.com/questions/74051866/colorscheme-broken-after-upgrading-to-nvim-v0-8-0-why-did-t-co-change
   use {'arzg/vim-colors-xcode'}
 
   -- lsp config for elixir-ls support

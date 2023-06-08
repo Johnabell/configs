@@ -90,6 +90,7 @@ end
 local on_attach = function(client, bufnr)
 
   buf_map(bufnr, 'n', 'gd', '<cmd>lua vim.lsp.buf.definition()<CR>')
+  buf_map(bufnr, 'n', '<leader>gt', '<cmd>lua vim.lsp.buf.type_definition()<CR>')
   buf_map(bufnr, 'n', 'gr', '<cmd>lua vim.lsp.buf.references()<CR>')
   buf_map(bufnr, 'n', 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>')
   buf_map(bufnr, 'n', 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
@@ -104,7 +105,7 @@ local on_attach = function(client, bufnr)
   buf_map(bufnr, 'n', ']d', '<cmd>lua vim.diagnostic.goto_next()<CR>')
 end
 
-local capabilities = require('cmp_nvim_lsp').update_capabilities(vim.lsp.protocol.make_client_capabilities())
+local capabilities = require('cmp_nvim_lsp').default_capabilities(vim.lsp.protocol.make_client_capabilities())
 capabilities.textDocument.completion.completionItem.snippetSupport = true
 
 local path_to_elixirls = vim.fn.expand("~/repos/elixir-ls/release/language_server.sh")
@@ -207,6 +208,11 @@ lsp.eslint.setup {
     },
   }
 }
+-- requires `npm install -g elm elm-test elm-format @elm-tooling/elm-language-server`
+lsp.elmls.setup{
+  capabilities = capabilities,
+  on_attach = on_attach,
+}
 require('rust-tools').setup({
   tools = {
     hover_actions = {
@@ -231,6 +237,9 @@ require('rust-tools').setup({
         },
         procMacro = {
           enable = true,
+        },
+        checkOnSave = {
+          command = "clippy",
         },
       },
     },

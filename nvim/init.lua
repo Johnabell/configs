@@ -42,6 +42,8 @@ require('packer').startup(function(use)
   -- cmp framework for auto-completion support
   use {'hrsh7th/nvim-cmp'}
 
+  use {'towolf/vim-helm'}
+
   -- install different completion source
   use {'hrsh7th/cmp-nvim-lsp'}
   use {'hrsh7th/cmp-buffer'}
@@ -148,7 +150,17 @@ lsp.taplo.setup{
 -- For other schemas see https://www.schemastore.org/json/
 lsp.yamlls.setup{
   capabilities = capabilities,
-  on_attach = on_attach,
+  on_attach = function(client, bufnr)
+    on_attach(client, bufnr)
+    -- Short-circuit for Helm template files
+    if vim.bo[bufnr].buftype ~= '' or vim.bo[bufnr].filetype == 'helm' then
+      vim.diagnostic.disable(bufnr)
+      vim.defer_fn(function()
+        vim.diagnostic.reset(nil, bufnr)
+      end, 1000)
+      return
+    end
+  end,
   settings = {
     yaml = {
       schemas = {
@@ -175,6 +187,7 @@ lsp.marksman.setup{
   capabilities = capabilities,
   on_attach = on_attach,
 }
+--  Requires `npm install -g typescript typescript-language-server`
 lsp.tsserver.setup {
   capabilities = capabilities,
   on_attach = function(client, bufnr)

@@ -36,6 +36,8 @@ require('packer').startup(function(use)
   -- https://stackoverflow.com/questions/74051866/colorscheme-broken-after-upgrading-to-nvim-v0-8-0-why-did-t-co-change
   use {'arzg/vim-colors-xcode'}
 
+  use {'binhtran432k/dracula.nvim'}
+
   -- lsp config for elixir-ls support
   use {'neovim/nvim-lspconfig'}
 
@@ -62,6 +64,7 @@ require('packer').startup(function(use)
   -- Rust
   -- use {'rust-lang/rust.vim'}
   use {'simrat39/rust-tools.nvim'}
+  use {'saecki/crates.nvim'}
 
   -- Spell checher
   use {'kamykn/spelunker.vim'}
@@ -83,6 +86,20 @@ local buf_map = function(bufnr, mode, lhs, rhs, opts)
   vim.api.nvim_buf_set_keymap(bufnr, mode, lhs, rhs, opts or { noremap=true, silent = true })
 end
 
+local function show_documentation()
+    local filetype = vim.bo.filetype
+    if vim.tbl_contains({ 'vim','help' }, filetype) then
+        vim.cmd('h '..vim.fn.expand('<cword>'))
+    elseif vim.tbl_contains({ 'man' }, filetype) then
+        vim.cmd('Man '..vim.fn.expand('<cword>'))
+    elseif vim.fn.expand('%:t') == 'Cargo.toml' and require('crates').popup_available() then
+        require('crates').show_popup()
+    else
+        vim.lsp.buf.hover()
+    end
+end
+
+vim.keymap.set('n', 'K', show_documentation, { silent = true })
 -- `on_attach` callback will be called after a language server
 -- instance has been attached to an open buffer with matching filetype
 -- here we're setting key mappings for hover documentation, goto definitions, goto references, etc
@@ -94,11 +111,11 @@ local on_attach = function(client, bufnr)
   buf_map(bufnr, 'n', 'gr', '<cmd>lua vim.lsp.buf.references()<CR>')
   buf_map(bufnr, 'n', 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>')
   buf_map(bufnr, 'n', 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
-  buf_map(bufnr, 'n', 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
+  --buf_map(bufnr, 'n', 'K', show_documentation)
   buf_map(bufnr, 'n', '<C-k>', '<cmd>lua vim.lsp.buf.signature_help()<CR>')
   buf_map(bufnr, 'n', '<leader>cr', '<cmd>lua vim.lsp.buf.rename()<CR>')
   buf_map(bufnr, 'n', '<leader>ca', '<cmd>lua vim.lsp.buf.code_action()<CR>')
-  buf_map(bufnr, 'n', '<leader>cf', '<cmd>lua vim.lsp.buf.formatting()<CR>')
+  buf_map(bufnr, 'n', '<leader>cf', '<cmd>lua vim.lsp.buf.format()<CR>')
   buf_map(bufnr, 'n', '<leader>cd', '<cmd>lua vim.diagnostic.open_float()<CR>')
   buf_map(bufnr, 'n', '<leader>cdl', '<cmd>lua vim.diagnostic.setqflist()<CR>')
   buf_map(bufnr, 'n', '[d', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
@@ -129,10 +146,23 @@ lsp.elixirls.setup {
   capabilities = capabilities,
   root_dir = lsp.util.root_pattern('mix.lock', '.formatter.exs')
 }
+-- Requires zls
+lsp.zls.setup {
+  capabilities = capabilities,
+  on_attach = on_attach,
+  cmd = { "zls" }
+}
 -- The following 4 LSPs requires `npm i -g vscode-langservers-extracted`
 lsp.jsonls.setup {
   capabilities = capabilities,
   on_attach = on_attach,
+}
+lsp.phpactor.setup {
+  capabilities = capabilities,
+  on_attach = on_attach,
+  cmd = { "phpactor", "language-server" },
+  filetypes = { "php" },
+  root_dir = lsp.util.root_pattern('composer.json', '.git'),
 }
 lsp.html.setup{
   capabilities = capabilities,
@@ -172,6 +202,11 @@ lsp.yamlls.setup{
       }
     }
   }
+}
+-- Requires npm install -g elm elm-test elm-format @elm-tooling/elm-language-server
+lsp.elmls.setup {
+  capabilities = capabilities,
+  on_attach = on_attach,
 }
 -- Requires go install github.com/bufbuild/buf-language-server/cmd/bufls@latest
 lsp.bufls.setup{
@@ -214,6 +249,7 @@ lsp.elmls.setup{
   on_attach = on_attach,
 }
 require('rust-tools').setup({
+  capabilities = capabilities,
   tools = {
     hover_actions = {
       auto_focus = true
@@ -224,6 +260,7 @@ require('rust-tools').setup({
   },
   server = {
     on_attach = function(client, bufnr)
+      client.server_capabilities.semanticTokensProvider = nil
       buf_map(bufnr, 'n', '<leader>cha', ':RustHoverActions<CR>')
       on_attach(client, bufnr)
     end,
@@ -234,6 +271,7 @@ require('rust-tools').setup({
           buildScripts = {
             enable = true,
           },
+          extraEnv = { CARGO_PROFILE_RUST_ANALYZER_INHERITS = 'dev', },
         },
         procMacro = {
           enable = true,
@@ -251,6 +289,17 @@ require("flutter-tools").setup({
     on_attach = on_attach
   }
 })
+require("crates").setup({
+  completion = {
+    cmp = {
+      enable = true
+    }
+  },
+  -- null_ls = {
+  --   enabled = true,
+  -- },
+})
+vim.api.nvim_set_hl(0, "CratesNvimVersion", { default = true, link = "Comment" })
 
 local cmp = require'cmp'
 
@@ -298,26 +347,37 @@ cmp.setup({
   sources = cmp.config.sources({
     { name = 'nvim_lsp' },
     { name = 'vsnip' }, -- For vsnip users.
-    { name = 'buffer' }
+    { name = 'buffer' },
+    { name = "crates" },
   })
 })
 
-require'nvim-treesitter.configs'.setup {
-  ensure_installed = {'rust', 'dart', 'elixir', 'typescript', 'javascript', 'python', 'lua'},
+require('nvim-treesitter.configs').setup {
+  ensure_installed = {'rust', 'dart', 'elixir', 'typescript', 'javascript', 'python', 'lua', 'php', 'zig'},
   sync_install = false,
   ignore_install = { },
   highlight = {
     enable = true,
     disable = { },
   },
+  indent = {
+    enable = true
+  }
 }
+
+require("dracula").setup {
+  styles = {
+    keywords = { italic = false },
+  },
+}
+
 
 vim.g.rooter_patterns = {'.git'}
 
-
 vim.wo.number = true
-vim.cmd('colorscheme xcodedark')
+vim.cmd('colorscheme dracula-soft')
 vim.cmd('map <C-p> :Files<CR>')
+vim.cmd('map <C-b> :Buffers<CR>')
 vim.cmd('set colorcolumn=80')
 vim.cmd('set tabstop=2 shiftwidth=2 expandtab')
 

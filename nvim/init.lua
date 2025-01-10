@@ -243,11 +243,6 @@ lsp.eslint.setup {
     },
   }
 }
--- requires `npm install -g elm elm-test elm-format @elm-tooling/elm-language-server`
-lsp.elmls.setup{
-  capabilities = capabilities,
-  on_attach = on_attach,
-}
 require('rust-tools').setup({
   capabilities = capabilities,
   tools = {
@@ -271,7 +266,10 @@ require('rust-tools').setup({
           buildScripts = {
             enable = true,
           },
-          extraEnv = { CARGO_PROFILE_RUST_ANALYZER_INHERITS = 'dev', },
+          extraEnv = {
+            CARGO_PROFILE_RUST_ANALYZER_INHERITS = 'dev',
+            CARGO_TARGET_DIR = 'target/lsp',
+          },
         },
         procMacro = {
           enable = true,

@@ -63,7 +63,6 @@ require('packer').startup(function(use)
 
   -- Rust
   -- use {'rust-lang/rust.vim'}
-  use {'simrat39/rust-tools.nvim'}
   use {'saecki/crates.nvim'}
 
   -- Spell checher
@@ -80,6 +79,9 @@ require('packer').startup(function(use)
 
   -- treesitter for syntax highlighting and more
   use {'nvim-treesitter/nvim-treesitter'}
+
+  -- hurl
+  use { "pfeiferj/nvim-hurl", branch="main" }
 end)
 
 local buf_map = function(bufnr, mode, lhs, rhs, opts)
@@ -122,8 +124,12 @@ local on_attach = function(client, bufnr)
   buf_map(bufnr, 'n', ']d', '<cmd>lua vim.diagnostic.goto_next()<CR>')
 end
 
-local capabilities = require('cmp_nvim_lsp').default_capabilities(vim.lsp.protocol.make_client_capabilities())
+local capabilities = vim.tbl_deep_extend("force",
+  vim.lsp.protocol.make_client_capabilities(),
+  require('cmp_nvim_lsp').default_capabilities()
+)
 capabilities.textDocument.completion.completionItem.snippetSupport = true
+capabilities.workspace.didChangeWatchedFiles.dynamicRegistration = false
 
 local path_to_elixirls = vim.fn.expand("~/repos/elixir-ls/release/language_server.sh")
 
@@ -152,6 +158,17 @@ lsp.zls.setup {
   on_attach = on_attach,
   cmd = { "zls" }
 }
+
+-- Requires haskell language-server
+lsp.hls.setup {
+  settings = {
+    haskell = {
+      formattingProvider = 'stylish-haskell',
+    },
+  },
+  on_attach = on_attach,
+}
+
 -- The following 4 LSPs requires `npm i -g vscode-langservers-extracted`
 lsp.jsonls.setup {
   capabilities = capabilities,
@@ -176,6 +193,7 @@ lsp.cssls.setup{
 lsp.taplo.setup{
   capabilities = capabilities,
   on_attach = on_attach,
+  root_dir = lsp.util.root_pattern('taplo.toml', '.git'),
 }
 -- Requires `npm install --global yaml-language-server`
 -- For other schemas see https://www.schemastore.org/json/
@@ -209,7 +227,7 @@ lsp.elmls.setup {
   on_attach = on_attach,
 }
 -- Requires go install github.com/bufbuild/buf-language-server/cmd/bufls@latest
-lsp.bufls.setup{
+lsp.buf_ls.setup{
   capabilities = capabilities,
   on_attach = on_attach,
 }
@@ -224,7 +242,7 @@ lsp.marksman.setup{
   on_attach = on_attach,
 }
 --  Requires `npm install -g typescript typescript-language-server`
-lsp.tsserver.setup {
+lsp.ts_ls.setup {
   capabilities = capabilities,
   on_attach = function(client, bufnr)
     buf_map(bufnr, 'n', 'go', ':TSLspImportAll<CR>')
@@ -243,43 +261,44 @@ lsp.eslint.setup {
     },
   }
 }
-require('rust-tools').setup({
+
+require("hurl").setup() -- add hurl to the nvim-treesitter config
+
+lsp.rust_analyzer.setup({
   capabilities = capabilities,
-  tools = {
-    hover_actions = {
-      auto_focus = true
-    },
-    inlay_hints = {
-      only_current_line = true
-    },
-  },
-  server = {
-    on_attach = function(client, bufnr)
-      client.server_capabilities.semanticTokensProvider = nil
-      buf_map(bufnr, 'n', '<leader>cha', ':RustHoverActions<CR>')
-      on_attach(client, bufnr)
-    end,
-    settings = {
-      ["rust-analyzer"] = {
-        cargo = {
-          allFeatures = true,
-          buildScripts = {
-            enable = true,
-          },
-          extraEnv = {
-            CARGO_PROFILE_RUST_ANALYZER_INHERITS = 'dev',
-            CARGO_TARGET_DIR = 'target/lsp',
-          },
-        },
-        procMacro = {
+  -- tools = {
+  --   hover_actions = {
+  --     auto_focus = true
+  --   },
+  --   inlay_hints = {
+  --     only_current_line = true
+  --   },
+  -- },
+  on_attach = function(client, bufnr)
+    client.server_capabilities.semanticTokensProvider = nil
+    buf_map(bufnr, 'n', '<leader>cha', ':RustHoverActions<CR>')
+    on_attach(client, bufnr)
+  end,
+  settings = {
+    ["rust-analyzer"] = {
+      cargo = {
+        -- allFeatures = true,
+        buildScripts = {
           enable = true,
         },
-        checkOnSave = {
-          command = "clippy",
+        extraEnv = {
+          CARGO_PROFILE_RUST_ANALYZER_INHERITS = 'dev',
+          CARGO_TARGET_DIR = 'target/lsp',
         },
       },
+      procMacro = {
+        enable = true,
+      },
+      checkOnSave = {
+        command = "clippy",
+      },
     },
-  }
+  },
 })
 require("flutter-tools").setup({
   flutter_lookup_cmd = "asdf where flutter",
@@ -288,11 +307,6 @@ require("flutter-tools").setup({
   }
 })
 require("crates").setup({
-  completion = {
-    cmp = {
-      enable = true
-    }
-  },
   -- null_ls = {
   --   enabled = true,
   -- },
@@ -351,7 +365,18 @@ cmp.setup({
 })
 
 require('nvim-treesitter.configs').setup {
-  ensure_installed = {'rust', 'dart', 'elixir', 'typescript', 'javascript', 'python', 'lua', 'php', 'zig'},
+  ensure_installed = {
+    'dart',
+    'elixir',
+    'hurl',
+    'javascript',
+    'lua',
+    'php',
+    'python',
+    'rust',
+    'typescript',
+    'zig',
+  },
   sync_install = false,
   ignore_install = { },
   highlight = {
@@ -369,6 +394,7 @@ require("dracula").setup {
   },
 }
 
+vim.exrc = true
 
 vim.g.rooter_patterns = {'.git'}
 
@@ -383,3 +409,14 @@ vim.g.blamer_enabled = 1
 
 -- Make bracket matching more subtle
 vim.cmd('hi MatchParen cterm=none ctermbg=none ctermfg=green')
+
+vim.api.nvim_create_user_command(
+  'InsertBranch',
+  function()
+    local branch = vim.fn.system("git branch --show-current 2> /dev/null | tr -d '\n'")
+    if branch ~= "" then
+        vim.api.nvim_paste(branch, false, -1)
+    end
+  end,
+  { desc = 'Insert the current git branch at the cursor' }
+)

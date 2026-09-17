@@ -5,7 +5,7 @@ local fmt = string.format
 local pack_path = fn.stdpath("data") .. "/site/pack"
 
 -- ensure a given plugin from github.com/<user>/<repo> is cloned in the pack/packer/start directory
-local function ensure (user, repo)
+local function ensure(user, repo)
   local install_path = fmt("%s/packer/start/%s", pack_path, repo)
   if fn.empty(fn.glob(install_path)) > 0 then
     execute(fmt("!git clone https://github.com/%s/%s %s", user, repo, install_path))
@@ -20,300 +20,79 @@ require('packer').startup(function(use)
   -- install all the plugins you need here
 
   -- the plugin manager can manage itself
-  use {'wbthomason/packer.nvim'}
+  use { 'wbthomason/packer.nvim' }
 
   -- vimagit
-  use {'jreybert/vimagit'}
+  use { 'jreybert/vimagit' }
 
   -- Fuzzy finder
-  use {'airblade/vim-rooter'}
-  use {'junegunn/fzf.vim'}
-  use {'junegunn/fzf'}
+  use { 'airblade/vim-rooter' }
+  use { 'junegunn/fzf.vim' }
+  use { 'junegunn/fzf' }
 
   -- colorscheme
   -- There was an issue with this color scheme after updating to nvim 0.8.
   -- I found a work around here.
   -- https://stackoverflow.com/questions/74051866/colorscheme-broken-after-upgrading-to-nvim-v0-8-0-why-did-t-co-change
-  use {'arzg/vim-colors-xcode'}
+  use { 'arzg/vim-colors-xcode' }
 
-  use {'binhtran432k/dracula.nvim'}
+  use { 'binhtran432k/dracula.nvim' }
 
   -- lsp config for elixir-ls support
-  use {'neovim/nvim-lspconfig'}
+  use { 'neovim/nvim-lspconfig' }
 
   -- cmp framework for auto-completion support
-  use {'hrsh7th/nvim-cmp'}
+  use { 'hrsh7th/nvim-cmp' }
 
-  use {'towolf/vim-helm'}
+  use { 'towolf/vim-helm' }
 
   -- install different completion source
-  use {'hrsh7th/cmp-nvim-lsp'}
-  use {'hrsh7th/cmp-buffer'}
-  use {'hrsh7th/cmp-path'}
-  use {'hrsh7th/cmp-cmdline'}
+  use { 'hrsh7th/cmp-nvim-lsp' }
+  use { 'hrsh7th/cmp-buffer' }
+  use { 'hrsh7th/cmp-path' }
+  use { 'hrsh7th/cmp-cmdline' }
 
   -- git plugins
-  use {'APZelos/blamer.nvim'}
-  
-  -- Flutter support
-  use {'akinsho/flutter-tools.nvim', requires = 'nvim-lua/plenary.nvim'}
+  use { 'APZelos/blamer.nvim' }
 
-  -- Typescript support
-  use {'jose-elias-alvarez/nvim-lsp-ts-utils'}
+  -- Flutter support
+  use { 'akinsho/flutter-tools.nvim', requires = 'nvim-lua/plenary.nvim' }
+
+  -- Typescript support DEPRECATED
+  -- use { 'jose-elias-alvarez/nvim-lsp-ts-utils' }
+
+  -- Copilot
+  use { 'github/copilot.vim' }
 
   -- Rust
   -- use {'rust-lang/rust.vim'}
-  use {'saecki/crates.nvim'}
+  use { 'saecki/crates.nvim' }
 
   -- Spell checher
-  use {'kamykn/spelunker.vim'}
+  use { 'kamykn/spelunker.vim' }
 
   -- Debugging
-  use {'nvim-lua/plenary.nvim'}
-  use {'mfussenegger/nvim-dap'}
+  use { 'nvim-lua/plenary.nvim' }
+  use { 'mfussenegger/nvim-dap' }
 
   -- you need a snippet engine for snippet support
   -- here I'm using vsnip which can load snippets in vscode format
-  use {'hrsh7th/vim-vsnip'}
-  use {'hrsh7th/cmp-vsnip'}
+  use { 'hrsh7th/vim-vsnip' }
+  use { 'hrsh7th/cmp-vsnip' }
 
   -- treesitter for syntax highlighting and more
-  use {'nvim-treesitter/nvim-treesitter'}
+  use { 'nvim-treesitter/nvim-treesitter', branch = 'main', run = ':TSUpdate' }
 
   -- hurl
-  use { "pfeiferj/nvim-hurl", branch="main" }
+  -- use { "pfeiferj/nvim-hurl", branch = "main" }
 end)
 
-local buf_map = function(bufnr, mode, lhs, rhs, opts)
-  vim.api.nvim_buf_set_keymap(bufnr, mode, lhs, rhs, opts or { noremap=true, silent = true })
-end
+-- Setup all the lsp config
+require('lsp')
 
-local function show_documentation()
-    local filetype = vim.bo.filetype
-    if vim.tbl_contains({ 'vim','help' }, filetype) then
-        vim.cmd('h '..vim.fn.expand('<cword>'))
-    elseif vim.tbl_contains({ 'man' }, filetype) then
-        vim.cmd('Man '..vim.fn.expand('<cword>'))
-    elseif vim.fn.expand('%:t') == 'Cargo.toml' and require('crates').popup_available() then
-        require('crates').show_popup()
-    else
-        vim.lsp.buf.hover()
-    end
-end
-
-vim.keymap.set('n', 'K', show_documentation, { silent = true })
--- `on_attach` callback will be called after a language server
--- instance has been attached to an open buffer with matching filetype
--- here we're setting key mappings for hover documentation, goto definitions, goto references, etc
--- you may set those key mappings based on your own preference
-local on_attach = function(client, bufnr)
-
-  buf_map(bufnr, 'n', 'gd', '<cmd>lua vim.lsp.buf.definition()<CR>')
-  buf_map(bufnr, 'n', '<leader>gt', '<cmd>lua vim.lsp.buf.type_definition()<CR>')
-  buf_map(bufnr, 'n', 'gr', '<cmd>lua vim.lsp.buf.references()<CR>')
-  buf_map(bufnr, 'n', 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>')
-  buf_map(bufnr, 'n', 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
-  --buf_map(bufnr, 'n', 'K', show_documentation)
-  buf_map(bufnr, 'n', '<C-k>', '<cmd>lua vim.lsp.buf.signature_help()<CR>')
-  buf_map(bufnr, 'n', '<leader>cr', '<cmd>lua vim.lsp.buf.rename()<CR>')
-  buf_map(bufnr, 'n', '<leader>ca', '<cmd>lua vim.lsp.buf.code_action()<CR>')
-  buf_map(bufnr, 'n', '<leader>cf', '<cmd>lua vim.lsp.buf.format()<CR>')
-  buf_map(bufnr, 'n', '<leader>cd', '<cmd>lua vim.diagnostic.open_float()<CR>')
-  buf_map(bufnr, 'n', '<leader>cdl', '<cmd>lua vim.diagnostic.setqflist()<CR>')
-  buf_map(bufnr, 'n', '[d', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
-  buf_map(bufnr, 'n', ']d', '<cmd>lua vim.diagnostic.goto_next()<CR>')
-end
-
-local capabilities = vim.tbl_deep_extend("force",
-  vim.lsp.protocol.make_client_capabilities(),
-  require('cmp_nvim_lsp').default_capabilities()
-)
-capabilities.textDocument.completion.completionItem.snippetSupport = true
-capabilities.workspace.didChangeWatchedFiles.dynamicRegistration = false
-
-local path_to_elixirls = vim.fn.expand("~/repos/elixir-ls/release/language_server.sh")
-
-local lsp = require('lspconfig')
-
--- setting up the elixir language server
--- you have to manually specify the entrypoint cmd for elixir-ls
-lsp.elixirls.setup {
-  cmd = { path_to_elixirls },
-  on_attach = function(client, bufnr) 
-    buf_map(bufnr, 'n', '<leader>tt', 'O@tag jb: true<C-[>:w<CR>')
-    buf_map(bufnr, 'n', '<leader>tuf', ':! mix test.unit %<cr>')
-    buf_map(bufnr, 'n', '<leader>tif', ':! mix test.integration %<cr>')
-    buf_map(bufnr, 'n', '<leader>tus', ':! mix test.unit % --only jb<cr>')
-    buf_map(bufnr, 'n', '<leader>tis', ':! mix test.integration % --only jb<cr>')
-    buf_map(bufnr, 'n', '<leader>tua', ':! mix test.unit<CR>')
-    buf_map(bufnr, 'n', '<leader>tia', ':! mix test.integration<CR>')
-    on_attach(client, bufnr)
-  end,
-  capabilities = capabilities,
-  root_dir = lsp.util.root_pattern('mix.lock', '.formatter.exs')
-}
--- Requires zls
-lsp.zls.setup {
-  capabilities = capabilities,
-  on_attach = on_attach,
-  cmd = { "zls" }
-}
-
--- Requires haskell language-server
-lsp.hls.setup {
-  settings = {
-    haskell = {
-      formattingProvider = 'stylish-haskell',
-    },
-  },
-  on_attach = on_attach,
-}
-
--- The following 4 LSPs requires `npm i -g vscode-langservers-extracted`
-lsp.jsonls.setup {
-  capabilities = capabilities,
-  on_attach = on_attach,
-}
-lsp.phpactor.setup {
-  capabilities = capabilities,
-  on_attach = on_attach,
-  cmd = { "phpactor", "language-server" },
-  filetypes = { "php" },
-  root_dir = lsp.util.root_pattern('composer.json', '.git'),
-}
-lsp.html.setup{
-  capabilities = capabilities,
-  on_attach = on_attach,
-}
-lsp.cssls.setup{
-  capabilities = capabilities,
-  on_attach = on_attach,
-}
--- Requires `cargo install --features lsp --locked taplo-cli`
-lsp.taplo.setup{
-  capabilities = capabilities,
-  on_attach = on_attach,
-  root_dir = lsp.util.root_pattern('taplo.toml', '.git'),
-}
--- Requires `npm install --global yaml-language-server`
--- For other schemas see https://www.schemastore.org/json/
-lsp.yamlls.setup{
-  capabilities = capabilities,
-  on_attach = function(client, bufnr)
-    on_attach(client, bufnr)
-    -- Short-circuit for Helm template files
-    if vim.bo[bufnr].buftype ~= '' or vim.bo[bufnr].filetype == 'helm' then
-      vim.diagnostic.disable(bufnr)
-      vim.defer_fn(function()
-        vim.diagnostic.reset(nil, bufnr)
-      end, 1000)
-      return
-    end
-  end,
-  settings = {
-    yaml = {
-      schemas = {
-        ["https://json.schemastore.org/github-workflow.json"] = "/.github/workflows/*",
-        ["https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json"] = "/docker-compose.yml",
-        ["https://json.schemastore.org/pubspec.json"] = "/pubspec.yaml",
-        ["https://json.schemastore.org/drone.json"] = "/.drone.yml",
-      }
-    }
-  }
-}
--- Requires npm install -g elm elm-test elm-format @elm-tooling/elm-language-server
-lsp.elmls.setup {
-  capabilities = capabilities,
-  on_attach = on_attach,
-}
--- Requires go install github.com/bufbuild/buf-language-server/cmd/bufls@latest
-lsp.buf_ls.setup{
-  capabilities = capabilities,
-  on_attach = on_attach,
-}
--- Requires `npm install -g dockerfile-language-server-nodejs`
-lsp.dockerls.setup{
-  capabilities = capabilities,
-  on_attach = on_attach,
-}
--- Requires https://github.com/artempyanykh/marksman
-lsp.marksman.setup{
-  capabilities = capabilities,
-  on_attach = on_attach,
-}
---  Requires `npm install -g typescript typescript-language-server`
-lsp.ts_ls.setup {
-  capabilities = capabilities,
-  on_attach = function(client, bufnr)
-    buf_map(bufnr, 'n', 'go', ':TSLspImportAll<CR>')
-    local ts_utils = require("nvim-lsp-ts-utils")
-      ts_utils.setup({})
-      ts_utils.setup_client(client)
-    on_attach(client, bufnr)
-  end
-}
-lsp.eslint.setup {
-  capabilities = capabilities,
-  on_attach = on_attach,
-  settings = {
-    format = {
-      enable = true,
-    },
-  }
-}
-
-require("hurl").setup() -- add hurl to the nvim-treesitter config
-
-lsp.rust_analyzer.setup({
-  capabilities = capabilities,
-  -- tools = {
-  --   hover_actions = {
-  --     auto_focus = true
-  --   },
-  --   inlay_hints = {
-  --     only_current_line = true
-  --   },
-  -- },
-  on_attach = function(client, bufnr)
-    client.server_capabilities.semanticTokensProvider = nil
-    buf_map(bufnr, 'n', '<leader>cha', ':RustHoverActions<CR>')
-    on_attach(client, bufnr)
-  end,
-  settings = {
-    ["rust-analyzer"] = {
-      cargo = {
-        -- allFeatures = true,
-        buildScripts = {
-          enable = true,
-        },
-        extraEnv = {
-          CARGO_PROFILE_RUST_ANALYZER_INHERITS = 'dev',
-          CARGO_TARGET_DIR = 'target/lsp',
-        },
-      },
-      procMacro = {
-        enable = true,
-      },
-      checkOnSave = {
-        command = "clippy",
-      },
-    },
-  },
-})
-require("flutter-tools").setup({
-  flutter_lookup_cmd = "asdf where flutter",
-  lsp = {
-    on_attach = on_attach
-  }
-})
-require("crates").setup({
-  -- null_ls = {
-  --   enabled = true,
-  -- },
-})
 vim.api.nvim_set_hl(0, "CratesNvimVersion", { default = true, link = "Comment" })
 
-local cmp = require'cmp'
+local cmp = require 'cmp'
 
 -- helper functions
 local has_words_before = function()
@@ -338,21 +117,21 @@ cmp.setup({
     ['<CR>'] = cmp.mapping.confirm({ select = true }),
     ["<Tab>"] = cmp.mapping(function(fallback)
       if cmp.visible() then
-	cmp.select_next_item()
+        cmp.select_next_item()
       elseif vim.fn["vsnip#available"](1) == 1 then
-	feedkey("<Plug>(vsnip-expand-or-jump)", "")
+        feedkey("<Plug>(vsnip-expand-or-jump)", "")
       elseif has_words_before() then
-	cmp.complete()
+        cmp.complete()
       else
-	fallback()
+        fallback()
       end
     end, { "i", "s" }),
 
     ["<S-Tab>"] = cmp.mapping(function()
       if cmp.visible() then
-	cmp.select_prev_item()
+        cmp.select_prev_item()
       elseif vim.fn["vsnip#jumpable"](-1) == 1 then
-	feedkey("<Plug>(vsnip-jump-prev)", "")
+        feedkey("<Plug>(vsnip-jump-prev)", "")
       end
     end, { "i", "s" }),
   },
@@ -364,11 +143,21 @@ cmp.setup({
   })
 })
 
-require('nvim-treesitter.configs').setup {
-  ensure_installed = {
+local treesitter = require('nvim-treesitter')
+
+treesitter.setup {
+  -- highlight = {
+  --   enable = true,
+  --   disable = {},
+  -- },
+  -- indent = {
+  --   enable = true
+  -- }
+}
+treesitter.install {
     'dart',
     'elixir',
-    'hurl',
+    -- 'hurl',
     'javascript',
     'lua',
     'php',
@@ -376,17 +165,14 @@ require('nvim-treesitter.configs').setup {
     'rust',
     'typescript',
     'zig',
-  },
-  sync_install = false,
-  ignore_install = { },
-  highlight = {
-    enable = true,
-    disable = { },
-  },
-  indent = {
-    enable = true
-  }
 }
+
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'dart', 'elixir', 'javascript', 'lua', 'php', 'python', 'rust', 'typescript', 'zig' },
+  callback = function()
+    pcall(vim.treesitter.start)
+  end,
+})
 
 require("dracula").setup {
   styles = {
@@ -396,7 +182,7 @@ require("dracula").setup {
 
 vim.exrc = true
 
-vim.g.rooter_patterns = {'.git'}
+vim.g.rooter_patterns = { '.git' }
 
 vim.wo.number = true
 vim.cmd('colorscheme dracula-soft')
@@ -415,8 +201,22 @@ vim.api.nvim_create_user_command(
   function()
     local branch = vim.fn.system("git branch --show-current 2> /dev/null | tr -d '\n'")
     if branch ~= "" then
-        vim.api.nvim_paste(branch, false, -1)
+      vim.api.nvim_paste(branch, false, -1)
     end
   end,
   { desc = 'Insert the current git branch at the cursor' }
 )
+
+-- Copilot settings
+vim.g.copilot_no_tab_map = true
+vim.api.nvim_set_keymap('i', '<C-c>', 'copilot#Accept("\\<CR>")', { expr = true, silent = true, noremap = true })
+
+if vim.fn.has('maxunix') then
+  vim.g.mapleader = "\\"
+end
+
+-- Automatically resize all Neovim windows when the terminal is resized
+vim.api.nvim_create_autocmd("VimResized", {
+  pattern = "*",
+  command = "tabdo wincmd =",
+})

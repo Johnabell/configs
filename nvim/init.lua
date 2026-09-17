@@ -54,9 +54,8 @@ require('packer').startup(function(use)
 
   -- git plugins
   use { 'APZelos/blamer.nvim' }
-
   -- Flutter support
-  use { 'akinsho/flutter-tools.nvim', requires = 'nvim-lua/plenary.nvim' }
+  use { 'nvim-flutter/flutter-tools.nvim', requires = 'nvim-lua/plenary.nvim' }
 
   -- Typescript support DEPRECATED
   -- use { 'jose-elias-alvarez/nvim-lsp-ts-utils' }

@@ -234,10 +234,5 @@ vim.lsp.config('rust_analyzer', {
 })
 vim.lsp.enable('rust_analyzer')
 
-require("flutter-tools").setup({
-  flutter_lookup_cmd = "asdf where flutter",
-  lsp = {
-    on_attach = on_attach
-  }
-})
+require("flutter-tools").setup({})
 require("crates").setup({})

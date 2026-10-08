@@ -164,8 +164,8 @@ install_binary_from_url() {
   local name="$1"
   local url="$2"
   local dest="$HOME/.local/bin/$name"
-  if have "$name"; then
-    log "$name already on PATH"
+  if have "$name" || [[ -x "$dest" ]]; then
+    log "$name already present"
     return 0
   fi
   if [[ -z "$url" ]]; then
@@ -173,12 +173,11 @@ install_binary_from_url() {
     return 0
   fi
   mkdir -p "$HOME/.local/bin"
-  local tmp
+  local tmp found
   tmp="$(mktemp -d)"
   log "installing $name from $url"
   if [[ "$url" == *.tar.gz ]] || [[ "$url" == *.tgz ]]; then
     curl -fsSL "$url" | tar -xz -C "$tmp" || { warn "extract failed: $name"; rm -rf "$tmp"; return 0; }
-    local found
     found="$(find "$tmp" -type f -name "$name" | head -n1)"
     if [[ -n "$found" ]]; then
       install -m 0755 "$found" "$dest"
@@ -194,10 +193,27 @@ install_binary_from_url() {
     else
       warn "could not find $name in zip"
     fi
+  elif [[ "$url" == *.gz ]]; then
+    # single gzipped binary (e.g. tree-sitter)
+    if curl -fsSL "$url" | gunzip -c >"$dest"; then
+      chmod +x "$dest"
+    else
+      rm -f "$dest"
+      warn "download/gunzip failed: $name"
+    fi
   else
     curl -fsSL "$url" -o "$dest" && chmod +x "$dest" || warn "download failed: $name"
   fi
   rm -rf "$tmp"
+}
+
+# Map uname arch to common release asset tags
+linux_ts_arch() {
+  case "$ARCH" in
+    x86_64|amd64) echo "x64" ;;
+    aarch64|arm64) echo "arm64" ;;
+    *) echo "$ARCH" ;;
+  esac
 }
 
 linux_arch_tag() {
@@ -273,6 +289,94 @@ install_linux_extras() {
     fi
   else
     log "opencode already present"
+  fi
+
+  # ruff (parity with brew "ruff")
+  if ! have ruff; then
+    log "installing ruff"
+    curl -LsSf https://astral.sh/ruff/install.sh | sh || warn "ruff install failed"
+  else
+    log "ruff already present"
+  fi
+
+  # tree-sitter CLI (parity with brew "tree-sitter-cli"; binary name is tree-sitter)
+  if ! have tree-sitter; then
+    local ts_arch ts_url
+    ts_arch="$(linux_ts_arch)"
+    ts_url="$(github_latest_asset_url "tree-sitter/tree-sitter" "tree-sitter-linux-${ts_arch}\\.gz")"
+    install_binary_from_url "tree-sitter" "$ts_url"
+  else
+    log "tree-sitter already present"
+  fi
+
+  # lua-language-server (parity with brew "lua-language-server")
+  # Needs the full release tree, not a lone binary.
+  if ! have lua-language-server; then
+    local lls_arch lls_url lls_dir lls_tmp lls_bin
+    lls_arch="$(linux_ts_arch)"
+    lls_url="$(github_latest_asset_url "LuaLS/lua-language-server" "lua-language-server-.*-linux-${lls_arch}\\.tar\\.gz")"
+    if [[ -n "$lls_url" ]]; then
+      lls_dir="$HOME/.local/share/lua-language-server"
+      lls_tmp="$(mktemp -d)"
+      log "installing lua-language-server from $lls_url"
+      if curl -fsSL "$lls_url" | tar -xz -C "$lls_tmp"; then
+        rm -rf "$lls_dir"
+        mkdir -p "$(dirname "$lls_dir")"
+        # Archive usually unpacks to bin/ + meta/ + main.lua at top level
+        if [[ -d "$lls_tmp/bin" ]]; then
+          mv "$lls_tmp" "$lls_dir"
+        else
+          # sometimes wrapped in a single top-level directory
+          local top
+          top="$(find "$lls_tmp" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+          mv "$top" "$lls_dir"
+          rm -rf "$lls_tmp"
+        fi
+        lls_bin="$lls_dir/bin/lua-language-server"
+        if [[ -x "$lls_bin" ]]; then
+          mkdir -p "$HOME/.local/bin"
+          ln -sfn "$lls_bin" "$HOME/.local/bin/lua-language-server"
+          log "linked lua-language-server"
+        else
+          warn "lua-language-server binary missing after extract"
+        fi
+      else
+        warn "lua-language-server download failed"
+        rm -rf "$lls_tmp"
+      fi
+    else
+      warn "no lua-language-server download URL"
+    fi
+  else
+    log "lua-language-server already present"
+  fi
+}
+
+# Tools that need Node (after asdf install) — Mac gets these via Brewfile
+install_node_global_tools() {
+  if ! have npm; then
+    warn "npm not available; skipping openapi-generator / npm globals"
+    return 0
+  fi
+
+  # openapi-generator (parity with brew "openapi-generator")
+  if have openapi-generator || have openapi-generator-cli; then
+    log "openapi-generator already present"
+  else
+    log "npm install -g @openapitools/openapi-generator-cli"
+    npm install -g @openapitools/openapi-generator-cli || warn "openapi-generator-cli install failed"
+  fi
+  # Brew binary is openapi-generator; npm provides openapi-generator-cli
+  if have openapi-generator-cli && ! have openapi-generator; then
+    mkdir -p "$HOME/.local/bin"
+    ln -sfn "$(command -v openapi-generator-cli)" "$HOME/.local/bin/openapi-generator"
+    log "symlinked openapi-generator -> openapi-generator-cli"
+  fi
+
+  # Fallback for tree-sitter if the GitHub binary install missed
+  if ! have tree-sitter; then
+    log "npm install -g tree-sitter-cli (fallback)"
+    npm install -g tree-sitter-cli || warn "tree-sitter-cli npm install failed"
   fi
 }
 
@@ -375,6 +479,9 @@ main() {
   install_cargo_tools
   install_cursor_agent
   ensure_asdf
+  if [[ "$OS" == "Linux" ]]; then
+    install_node_global_tools
+  fi
   ensure_oh_my_zsh
   link_dotfiles
 

@@ -22,10 +22,22 @@ Or locally:
 | Git            | `git/gitconfig` (aliases, editor); identity in `~/.gitconfig.local`                                       |
 | Editor         | `nvim/` → `~/.config/nvim`                                                                                |
 | Mac packages   | Homebrew `Brewfile`                                                                                       |
-| Linux packages | `apt` via `packages-apt.txt` + release binaries (k9s, yq, gh, helm, skaffold, opencode) — **no Homebrew** |
+| Linux packages | `apt` via `packages-apt.txt` + release/npm installs matching the Brewfile — **no Homebrew**               |
 | Rust tools     | `cargo-tools.txt` (nextest, llvm-cov, deny, expand, make, udeps, taplo, tokei)                            |
 | LLM CLIs       | Cursor Agent (`curl https://cursor.com/install`), opencode                                                |
 | Languages      | asdf + `.tool-versions` (nodejs, java, maven); rustup for Rust                                            |
+
+### Brewfile ↔ Linux parity
+
+| Tool | Mac | Linux |
+|------|-----|-------|
+| asdf, bat, cmake, curl, gnupg, jq, neovim, protobuf, ripgrep, tree | brew | apt (+ asdf clone) |
+| gh, helm, k9s, skaffold, yq | brew | GitHub / official install scripts |
+| ruff | brew | Astral install script |
+| tree-sitter-cli (`tree-sitter`) | brew | GitHub release (npm fallback) |
+| lua-language-server | brew | GitHub release |
+| openapi-generator | brew | npm `@openapitools/openapi-generator-cli` (+ `openapi-generator` symlink) |
+| opencode | brew tap | official install script |
 
 Not installed: Flutter / Elixir / Haskell / Zig SDKs, private path crates (`pipeline-cli`, `cargo-sanitize`), GUI apps.
 

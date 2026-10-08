@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Coder / local bootstrap for this configs repo.
-# Darwin: Homebrew + Brewfile. Linux: apt + release binaries (no Homebrew).
+# macOS and Linux: Homebrew + Brewfile, then shared cargo/asdf/shell setup.
 set -u
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,6 +38,75 @@ link_file() {
   fi
   ln -sfn "$src" "$dest"
   log "linked $dest -> $src"
+}
+
+# Put brew on PATH for this script (and future shells via zprofile)
+eval_brew_shellenv() {
+  if [[ -x /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  elif [[ -x /usr/local/bin/brew ]]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+  elif [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+  elif have brew; then
+    eval "$(brew shellenv)"
+  fi
+}
+
+# Homebrew on Linux needs a compiler toolchain before brew itself is useful
+ensure_linux_brew_deps() {
+  [[ "$OS" == "Linux" ]] || return 0
+  have apt-get || return 0
+
+  local need=()
+  local pkg
+  for pkg in build-essential curl file git procps; do
+    if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+      need+=("$pkg")
+    fi
+  done
+  [[ ${#need[@]} -eq 0 ]] && return 0
+
+  log "installing Homebrew prerequisites: ${need[*]}"
+  if have sudo; then
+    sudo apt-get update -y || warn "apt-get update failed"
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${need[@]+"${need[@]}"}" || warn "apt prerequisite install failed"
+  else
+    apt-get update -y || warn "apt-get update failed"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "${need[@]+"${need[@]}"}" || warn "apt prerequisite install failed"
+  fi
+}
+
+ensure_homebrew() {
+  eval_brew_shellenv
+  if have brew; then
+    log "Homebrew already present ($(command -v brew))"
+    return 0
+  fi
+
+  ensure_linux_brew_deps
+
+  log "installing Homebrew"
+  NONINTERACTIVE=1 CI=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || {
+    warn "Homebrew install failed"
+    return 0
+  }
+  eval_brew_shellenv
+  if ! have brew; then
+    warn "brew still not on PATH after install"
+    return 0
+  fi
+  log "Homebrew installed ($(command -v brew))"
+}
+
+install_brew_packages() {
+  ensure_homebrew
+  if ! have brew; then
+    warn "skipping brew bundle (brew unavailable)"
+    return 0
+  fi
+  log "brew bundle --file=$REPO_DIR/Brewfile"
+  brew bundle --file="$REPO_DIR/Brewfile" || warn "brew bundle reported errors (continuing)"
 }
 
 ensure_oh_my_zsh() {
@@ -106,285 +175,12 @@ install_cargo_tools() {
   done <"$REPO_DIR/cargo-tools.txt"
 }
 
-install_mac_packages() {
-  if ! have brew; then
-    warn "Homebrew not found; install from https://brew.sh then re-run"
-    return 0
-  fi
-  log "brew bundle"
-  brew bundle --file="$REPO_DIR/Brewfile" || warn "brew bundle reported errors (continuing)"
-}
-
-install_linux_apt() {
-  if ! have apt-get; then
-    warn "apt-get not found; skipping apt packages"
-    return 0
-  fi
-  local pkgs=()
-  local pkg
-  while IFS= read -r pkg || [[ -n "$pkg" ]]; do
-    case "$pkg" in
-      ''|\#*) continue ;;
-    esac
-    pkgs+=("$pkg")
-  done <"$REPO_DIR/packages-apt.txt"
-
-  if [[ ${#pkgs[@]} -eq 0 ]]; then
-    return 0
-  fi
-
-  log "apt-get update + install (${#pkgs[@]} packages)"
-  if have sudo; then
-    sudo apt-get update -y || warn "apt-get update failed"
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]+"${pkgs[@]}"}" || warn "apt-get install failed"
-  else
-    apt-get update -y || warn "apt-get update failed"
-    DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]+"${pkgs[@]}"}" || warn "apt-get install failed"
-  fi
-
-  # Debian/Ubuntu often ship bat as batcat
-  if ! have bat && have batcat; then
-    mkdir -p "$HOME/.local/bin"
-    ln -sfn "$(command -v batcat)" "$HOME/.local/bin/bat"
-    log "symlinked bat -> batcat"
-  fi
-}
-
-github_latest_asset_url() {
-  # Args: owner/repo regex_for_asset_name
-  local repo="$1"
-  local pattern="$2"
-  curl -fsSL "https://api.github.com/repos/${repo}/releases/latest" \
-    | grep -oE "https://[^\"]+/download/[^\"]+" \
-    | grep -E "$pattern" \
-    | head -n1
-}
-
-install_binary_from_url() {
-  local name="$1"
-  local url="$2"
-  local dest="$HOME/.local/bin/$name"
-  if have "$name" || [[ -x "$dest" ]]; then
-    log "$name already present"
-    return 0
-  fi
-  if [[ -z "$url" ]]; then
-    warn "no download URL for $name"
-    return 0
-  fi
-  mkdir -p "$HOME/.local/bin"
-  local tmp found
-  tmp="$(mktemp -d)"
-  log "installing $name from $url"
-  if [[ "$url" == *.tar.gz ]] || [[ "$url" == *.tgz ]]; then
-    curl -fsSL "$url" | tar -xz -C "$tmp" || { warn "extract failed: $name"; rm -rf "$tmp"; return 0; }
-    found="$(find "$tmp" -type f -name "$name" | head -n1)"
-    if [[ -n "$found" ]]; then
-      install -m 0755 "$found" "$dest"
-    else
-      warn "could not find $name in archive"
-    fi
-  elif [[ "$url" == *.zip ]]; then
-    curl -fsSL "$url" -o "$tmp/asset.zip" || { warn "download failed: $name"; rm -rf "$tmp"; return 0; }
-    unzip -q "$tmp/asset.zip" -d "$tmp" || true
-    found="$(find "$tmp" -type f -name "$name" | head -n1)"
-    if [[ -n "$found" ]]; then
-      install -m 0755 "$found" "$dest"
-    else
-      warn "could not find $name in zip"
-    fi
-  elif [[ "$url" == *.gz ]]; then
-    # single gzipped binary (e.g. tree-sitter)
-    if curl -fsSL "$url" | gunzip -c >"$dest"; then
-      chmod +x "$dest"
-    else
-      rm -f "$dest"
-      warn "download/gunzip failed: $name"
-    fi
-  else
-    curl -fsSL "$url" -o "$dest" && chmod +x "$dest" || warn "download failed: $name"
-  fi
-  rm -rf "$tmp"
-}
-
-# Map uname arch to common release asset tags
-linux_ts_arch() {
-  case "$ARCH" in
-    x86_64|amd64) echo "x64" ;;
-    aarch64|arm64) echo "arm64" ;;
-    *) echo "$ARCH" ;;
-  esac
-}
-
-linux_arch_tag() {
-  case "$ARCH" in
-    x86_64|amd64) echo "amd64" ;;
-    aarch64|arm64) echo "arm64" ;;
-    *) echo "$ARCH" ;;
-  esac
-}
-
-install_linux_extras() {
-  local a
-  a="$(linux_arch_tag)"
-
-  # k9s
-  if ! have k9s; then
-    local url
-    url="$(github_latest_asset_url "derailed/k9s" "k9s_Linux_${a}\\.tar\\.gz")"
-    # fallback naming used by some releases
-    if [[ -z "$url" ]]; then
-      url="$(github_latest_asset_url "derailed/k9s" "k9s_Linux_.*${a}.*\\.tar\\.gz")"
-    fi
-    install_binary_from_url "k9s" "$url"
-  else
-    log "k9s already present"
-  fi
-
-  # yq
-  if ! have yq; then
-    local yq_arch="$a"
-    [[ "$yq_arch" == "amd64" ]] && yq_arch="amd64"
-    [[ "$ARCH" == "x86_64" ]] && yq_arch="amd64"
-    [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && yq_arch="arm64"
-    local yq_url
-    yq_url="$(github_latest_asset_url "mikefarah/yq" "yq_linux_${yq_arch}\$")"
-    install_binary_from_url "yq" "$yq_url"
-  else
-    log "yq already present"
-  fi
-
-  # gh
-  if ! have gh; then
-    local gh_url
-    gh_url="$(github_latest_asset_url "cli/cli" "gh_.*_linux_${a}\\.tar\\.gz")"
-    install_binary_from_url "gh" "$gh_url"
-  else
-    log "gh already present"
-  fi
-
-  # helm
-  if ! have helm; then
-    log "installing helm"
-    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash || warn "helm install failed"
-  else
-    log "helm already present"
-  fi
-
-  # skaffold
-  if ! have skaffold; then
-    local sk_url="https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-${a}"
-    install_binary_from_url "skaffold" "$sk_url"
-  else
-    log "skaffold already present"
-  fi
-
-  # opencode — try common install script / npm-free binary
-  if ! have opencode && ! have opencode-v2; then
-    log "installing opencode"
-    if curl -fsSL https://opencode.ai/install 2>/dev/null | bash; then
-      log "opencode install script finished"
-    else
-      warn "opencode auto-install failed; install manually from https://opencode.ai"
-    fi
-  else
-    log "opencode already present"
-  fi
-
-  # ruff (parity with brew "ruff")
-  if ! have ruff; then
-    log "installing ruff"
-    curl -LsSf https://astral.sh/ruff/install.sh | sh || warn "ruff install failed"
-  else
-    log "ruff already present"
-  fi
-
-  # tree-sitter CLI (parity with brew "tree-sitter-cli"; binary name is tree-sitter)
-  if ! have tree-sitter; then
-    local ts_arch ts_url
-    ts_arch="$(linux_ts_arch)"
-    ts_url="$(github_latest_asset_url "tree-sitter/tree-sitter" "tree-sitter-linux-${ts_arch}\\.gz")"
-    install_binary_from_url "tree-sitter" "$ts_url"
-  else
-    log "tree-sitter already present"
-  fi
-
-  # lua-language-server (parity with brew "lua-language-server")
-  # Needs the full release tree, not a lone binary.
-  if ! have lua-language-server; then
-    local lls_arch lls_url lls_dir lls_tmp lls_bin
-    lls_arch="$(linux_ts_arch)"
-    lls_url="$(github_latest_asset_url "LuaLS/lua-language-server" "lua-language-server-.*-linux-${lls_arch}\\.tar\\.gz")"
-    if [[ -n "$lls_url" ]]; then
-      lls_dir="$HOME/.local/share/lua-language-server"
-      lls_tmp="$(mktemp -d)"
-      log "installing lua-language-server from $lls_url"
-      if curl -fsSL "$lls_url" | tar -xz -C "$lls_tmp"; then
-        rm -rf "$lls_dir"
-        mkdir -p "$(dirname "$lls_dir")"
-        # Archive usually unpacks to bin/ + meta/ + main.lua at top level
-        if [[ -d "$lls_tmp/bin" ]]; then
-          mv "$lls_tmp" "$lls_dir"
-        else
-          # sometimes wrapped in a single top-level directory
-          local top
-          top="$(find "$lls_tmp" -mindepth 1 -maxdepth 1 -type d | head -n1)"
-          mv "$top" "$lls_dir"
-          rm -rf "$lls_tmp"
-        fi
-        lls_bin="$lls_dir/bin/lua-language-server"
-        if [[ -x "$lls_bin" ]]; then
-          mkdir -p "$HOME/.local/bin"
-          ln -sfn "$lls_bin" "$HOME/.local/bin/lua-language-server"
-          log "linked lua-language-server"
-        else
-          warn "lua-language-server binary missing after extract"
-        fi
-      else
-        warn "lua-language-server download failed"
-        rm -rf "$lls_tmp"
-      fi
-    else
-      warn "no lua-language-server download URL"
-    fi
-  else
-    log "lua-language-server already present"
-  fi
-}
-
-# Tools that need Node (after asdf install) — Mac gets these via Brewfile
-install_node_global_tools() {
-  if ! have npm; then
-    warn "npm not available; skipping openapi-generator / npm globals"
-    return 0
-  fi
-
-  # openapi-generator (parity with brew "openapi-generator")
-  if have openapi-generator || have openapi-generator-cli; then
-    log "openapi-generator already present"
-  else
-    log "npm install -g @openapitools/openapi-generator-cli"
-    npm install -g @openapitools/openapi-generator-cli || warn "openapi-generator-cli install failed"
-  fi
-  # Brew binary is openapi-generator; npm provides openapi-generator-cli
-  if have openapi-generator-cli && ! have openapi-generator; then
-    mkdir -p "$HOME/.local/bin"
-    ln -sfn "$(command -v openapi-generator-cli)" "$HOME/.local/bin/openapi-generator"
-    log "symlinked openapi-generator -> openapi-generator-cli"
-  fi
-
-  # Fallback for tree-sitter if the GitHub binary install missed
-  if ! have tree-sitter; then
-    log "npm install -g tree-sitter-cli (fallback)"
-    npm install -g tree-sitter-cli || warn "tree-sitter-cli npm install failed"
-  fi
-}
-
 ensure_asdf() {
+  # Prefer brew-installed asdf from Brewfile; fall back to git clone
   if have asdf || [[ -x "$HOME/.asdf/bin/asdf" ]]; then
     log "asdf already present"
   else
-    log "installing asdf"
+    log "installing asdf (git clone fallback)"
     git clone https://github.com/asdf-vm/asdf.git "$HOME/.asdf" --branch v0.15.0 || {
       warn "asdf clone failed"
       return 0
@@ -421,7 +217,6 @@ ensure_asdf() {
       cd "$REPO_DIR" || exit 0
       asdf install || warn "asdf install had errors"
     )
-    # Also place a copy in HOME so shims resolve outside the repo
     if [[ ! -f "$HOME/.tool-versions" ]]; then
       cp "$REPO_DIR/.tool-versions" "$HOME/.tool-versions"
       log "copied .tool-versions to \$HOME"
@@ -460,28 +255,13 @@ EOF
 main() {
   log "repo=$REPO_DIR os=$OS arch=$ARCH"
 
-  case "$OS" in
-    Darwin)
-      install_mac_packages
-      ;;
-    Linux)
-      install_linux_apt
-      install_linux_extras
-      ;;
-    *)
-      warn "unsupported OS: $OS (continuing with portable steps)"
-      ;;
-  esac
-
   mkdir -p "$HOME/.local/bin"
   export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
+  install_brew_packages
   install_cargo_tools
   install_cursor_agent
   ensure_asdf
-  if [[ "$OS" == "Linux" ]]; then
-    install_node_global_tools
-  fi
   ensure_oh_my_zsh
   link_dotfiles
 

@@ -1,4 +1,4 @@
-# macOS Homebrew formulae (install.sh uses this on Darwin only)
+# Shared Homebrew formulae (macOS + Linux via install.sh)
 brew "asdf"
 brew "bat"
 brew "cmake"

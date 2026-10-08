@@ -1,0 +1,16 @@
+zsh
+git
+curl
+ca-certificates
+build-essential
+ripgrep
+bat
+jq
+tree
+cmake
+gnupg
+protobuf-compiler
+unzip
+wget
+sudo
+neovim

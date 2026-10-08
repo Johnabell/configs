@@ -1,0 +1,8 @@
+cargo-nextest
+cargo-llvm-cov
+cargo-deny
+cargo-expand
+cargo-make
+cargo-udeps
+taplo-cli
+tokei

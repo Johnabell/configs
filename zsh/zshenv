@@ -1,0 +1,4 @@
+# Cargo / rustup env when present
+if [[ -f "$HOME/.cargo/env" ]]; then
+  . "$HOME/.cargo/env"
+fi

@@ -110,24 +110,24 @@ vim.lsp.config('lua_ls', {
   }
 })
 vim.lsp.enable('lua_ls')
--- setting up the elixir language server
--- you have to manually specify the entrypoint cmd for elixir-ls
-local path_to_elixirls = vim.fn.expand("~/repos/elixir-ls/release/language_server.sh")
-vim.lsp.config('elixirls', {
-  cmd = { path_to_elixirls },
-  on_attach = function(_, bufnr)
-    buf_map(bufnr, 'n', '<leader>tt', 'O@tag jb: true<C-[>:w<CR>')
-    buf_map(bufnr, 'n', '<leader>tuf', ':! mix test.unit %<cr>')
-    buf_map(bufnr, 'n', '<leader>tif', ':! mix test.integration %<cr>')
-    buf_map(bufnr, 'n', '<leader>tus', ':! mix test.unit % --only jb<cr>')
-    buf_map(bufnr, 'n', '<leader>tis', ':! mix test.integration % --only jb<cr>')
-    buf_map(bufnr, 'n', '<leader>tua', ':! mix test.unit<CR>')
-    buf_map(bufnr, 'n', '<leader>tia', ':! mix test.integration<CR>')
-    -- on_attach(client, bufnr)
-  end,
-  -- root_dir = lsp.util.root_pattern('mix.lock', '.formatter.exs')
-})
--- vim.lsp.enable('elixirls')
+-- Elixir LS — only configure when the language server binary exists.
+-- Not installed by this repo's install.sh; enable manually if you add elixir-ls.
+local path_to_elixirls = vim.fn.expand(vim.env.ELIXIR_LS or "~/repos/elixir-ls/release/language_server.sh")
+if vim.fn.executable(path_to_elixirls) == 1 then
+  vim.lsp.config('elixirls', {
+    cmd = { path_to_elixirls },
+    on_attach = function(_, bufnr)
+      buf_map(bufnr, 'n', '<leader>tt', 'O@tag jb: true<C-[>:w<CR>')
+      buf_map(bufnr, 'n', '<leader>tuf', ':! mix test.unit %<cr>')
+      buf_map(bufnr, 'n', '<leader>tif', ':! mix test.integration %<cr>')
+      buf_map(bufnr, 'n', '<leader>tus', ':! mix test.unit % --only jb<cr>')
+      buf_map(bufnr, 'n', '<leader>tis', ':! mix test.integration % --only jb<cr>')
+      buf_map(bufnr, 'n', '<leader>tua', ':! mix test.unit<CR>')
+      buf_map(bufnr, 'n', '<leader>tia', ':! mix test.integration<CR>')
+    end,
+  })
+  -- vim.lsp.enable('elixirls')
+end
 
 -- Requires zls
 vim.lsp.enable('zls')

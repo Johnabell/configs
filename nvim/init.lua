@@ -210,9 +210,7 @@ vim.api.nvim_create_user_command(
 vim.g.copilot_no_tab_map = true
 vim.api.nvim_set_keymap('i', '<C-c>', 'copilot#Accept("\\<CR>")', { expr = true, silent = true, noremap = true })
 
-if vim.fn.has('maxunix') then
-  vim.g.mapleader = "\\"
-end
+vim.g.mapleader = "\\"
 
 -- Automatically resize all Neovim windows when the terminal is resized
 vim.api.nvim_create_autocmd("VimResized", {

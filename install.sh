@@ -161,12 +161,19 @@ install_cargo_tools() {
     bin="$crate"
     case "$crate" in
       taplo-cli) bin=taplo ;;
+      sqlx-cli) bin=sqlx ;;
     esac
     if have "$bin" || [[ -x "$HOME/.cargo/bin/$bin" ]]; then
       log "cargo tool already present: $crate"
       continue
     fi
     log "cargo install $crate"
+    if [[ "$crate" == "sqlx-cli" ]]; then
+      # Default features pull openssl; rustls keeps the install more portable.
+      cargo install sqlx-cli --no-default-features --features rustls,postgres,sqlite,mysql \
+        || cargo install sqlx-cli || warn "failed: $crate"
+      continue
+    fi
     if have cargo-binstall; then
       cargo binstall -y "$crate" 2>/dev/null || cargo install "$crate" --locked 2>/dev/null || cargo install "$crate" || warn "failed: $crate"
     else

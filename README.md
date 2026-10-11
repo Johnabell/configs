@@ -16,15 +16,15 @@ Or locally:
 
 ## What it sets up
 
-| Area       | How                                                                            |
-| ---------- | ------------------------------------------------------------------------------ |
-| Shell      | Oh My Zsh + tracked `zsh/` files symlinked into `$HOME`                        |
-| Git        | `git/gitconfig` (aliases, editor); identity in `~/.gitconfig.local`            |
-| Editor     | `nvim/` → `~/.config/nvim`                                                     |
-| CLI tools  | Homebrew + shared `Brewfile` on **both** macOS and Linux                       |
-| Rust tools | `cargo-tools.txt` (nextest, llvm-cov, deny, expand, make, udeps, taplo, tokei) |
-| LLM CLIs   | Cursor Agent (`curl https://cursor.com/install`); opencode via Brewfile        |
-| Languages  | asdf + `.tool-versions` (nodejs, java, maven); rustup for Rust                 |
+| Area       | How                                                                                            |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| Shell      | Oh My Zsh + tracked `zsh/` files symlinked into `$HOME`                                        |
+| Git        | `git/gitconfig` (aliases, editor); identity in `~/.gitconfig.local`                            |
+| Editor     | `nvim/` → `~/.config/nvim`                                                                     |
+| CLI tools  | Homebrew + shared `Brewfile` on **both** macOS and Linux (incl. minikube, k9s, helm, skaffold) |
+| Rust tools | `cargo-tools.txt` (nextest, llvm-cov, deny, expand, make, udeps, taplo, tokei, sqlx-cli)       |
+| LLM CLIs   | Cursor Agent (`curl https://cursor.com/install`); opencode via Brewfile                        |
+| Languages  | asdf + `.tool-versions` (nodejs, java, maven); rustup for Rust                                 |
 
 `install.sh` installs Homebrew if missing (on Linux it first ensures apt build deps: `build-essential`, `curl`, `file`, `git`, `procps`), then runs `brew bundle`. First Linux run is heavier than apt-only setups.
 

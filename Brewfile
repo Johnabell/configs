@@ -19,6 +19,7 @@ brew "skaffold"
 brew "tree"
 brew "tree-sitter-cli"
 brew "yq"
+cask "codex"
 
 tap "anomalyco/tap"
 brew "anomalyco/tap/opencode-v2"
